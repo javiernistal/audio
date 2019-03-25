@@ -5,7 +5,35 @@ import os.path
 import shutil
 import errno
 import torch
-import torchaudio
+import ipdb
+
+try:
+    import torchaudio
+    def read_audio(fp, sample_rate, downsample=True):
+        if sample_rate != 44100:
+        # if downsample:
+            E = torchaudio.sox_effects.SoxEffectsChain()
+            E.set_input_file(fp)
+            E.append_effect_to_chain("gain", ["-h"])
+            E.append_effect_to_chain("channels", [1])
+            E.append_effect_to_chain("rate", [sample_rate])
+            E.append_effect_to_chain("gain", ["-rh"])
+            E.append_effect_to_chain("dither", ["-s"])
+            sig, sr = E.sox_build_flow_effects()
+            # ipdb.set_trace()
+        else:
+            sig, sr = torchaudio.load(fp)
+        sig = sig.contiguous()
+
+        return sig, sr
+
+except Exception as e:
+    print(e)
+    print("Error loading torchaudio. Loading librosa instead")
+    from librosa.core import load as read_audio
+
+
+
 
 
 class YOUTUBE_PIANOS(data.Dataset):
@@ -28,9 +56,12 @@ class YOUTUBE_PIANOS(data.Dataset):
     processed_folder = 'youtube_pianos/processed'
     # url = 'http://www.openslr.org/resources/1/waves_yesno.tar.gz'
     # dset_path = 'waves_youtube_pianos'
-    processed_file = 'youtube_pianos.pt'
 
-    def __init__(self, root, transform=None, target_transform=None, dev_mode=False):
+    def __init__(
+            self, root, sample_rate=16000, processed_file='youtube_pianos',
+            transform=None, target_transform=None, dev_mode=False
+        ):
+        self.processed_file = "{0}_{1}.pt".format(processed_file, sample_rate)
         self.root = os.path.expanduser(root)
         self.transform = transform
         self.target_transform = target_transform
@@ -39,6 +70,7 @@ class YOUTUBE_PIANOS(data.Dataset):
         self.labels = []
         self.num_samples = 0
         self.max_len = 0
+        self.sample_rate=sample_rate
 
         self.save_as_torch_file()
 
@@ -61,10 +93,10 @@ class YOUTUBE_PIANOS(data.Dataset):
         if self.transform is not None:
             audio = self.transform(audio)
 
-        if self.target_transform is not None:
-            target = self.target_transform(target)
+        # if self.target_transform is not None:
+        #     target = self.target_transform(target)
 
-        return audio, target
+        return audio
 
 
     def __len__(self):
@@ -98,10 +130,17 @@ class YOUTUBE_PIANOS(data.Dataset):
         labels = []
         lengths = []
         for i, f in enumerate(audios):
+            print("Reading: {0}".format(f))
             full_path = os.path.join(dset_abs_path, f)
-            sig, sr = torchaudio.load(full_path)
+
+            sig, sr = read_audio(full_path, self.sample_rate)
+            sig = sig.reshape((1, -1))
+            # TODO make it work with librosa, in case torchaudio is not in machine
+            sig = torch.FloatTensor(sig)
+            # ipdb.set_trace()
             tensors.append(sig)
             lengths.append(sig.size(1))
+            # lengths.append(len(sig))
             labels.append(os.path.basename(f).split(".", 1)[0].split("_"))
         # sort sigs/labels: longest -> shortest
         tensors, labels = zip(*[(b, c) for (a, b, c) in sorted(
@@ -123,7 +162,6 @@ class YOUTUBE_PIANOS(data.Dataset):
 
         print('Done!')
 
-
-youtube_pianos_path = "~/Developer/datasets/"
-pianods = YOUTUBE_PIANOS(youtube_pianos_path)
-
+if __name__=='__main__':
+    youtube_pianos_path = "~/Developer/datasets/"
+    pianods = YOUTUBE_PIANOS(youtube_pianos_path, sample_rate=16000)
