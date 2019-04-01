@@ -59,7 +59,7 @@ class YOUTUBE_PIANOS(data.Dataset):
 
     def __init__(
             self, root, sample_rate=16000, processed_file='youtube_pianos',
-            transform=None, target_transform=None, dev_mode=False
+            transform=None, target_transform=None, dev_mode=False, chunk_size=16000
         ):
         self.processed_file = "{0}_{1}.pt".format(processed_file, sample_rate)
         self.root = os.path.expanduser(root)
@@ -71,6 +71,7 @@ class YOUTUBE_PIANOS(data.Dataset):
         self.num_samples = 0
         self.max_len = 0
         self.sample_rate=sample_rate
+        self.chunk_size = chunk_size
 
         self.save_as_torch_file()
 
@@ -96,7 +97,7 @@ class YOUTUBE_PIANOS(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return audio[:, :512], target
+        return audio[:, :self.chunk_size], target
 
 
     def __len__(self):
