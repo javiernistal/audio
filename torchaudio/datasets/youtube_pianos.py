@@ -93,10 +93,10 @@ class YOUTUBE_PIANOS(data.Dataset):
         if self.transform is not None:
             audio = self.transform(audio)
 
-        # if self.target_transform is not None:
-        #     target = self.target_transform(target)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
 
-        return audio
+        return audio[:, :512], target
 
 
     def __len__(self):
@@ -135,12 +135,12 @@ class YOUTUBE_PIANOS(data.Dataset):
 
             sig, sr = read_audio(full_path, self.sample_rate)
             sig = sig.reshape((1, -1))
-            # TODO make it work with librosa, in case torchaudio is not in machine
+
             sig = torch.FloatTensor(sig)
-            # ipdb.set_trace()
+
             tensors.append(sig)
             lengths.append(sig.size(1))
-            # lengths.append(len(sig))
+
             labels.append(os.path.basename(f).split(".", 1)[0].split("_"))
         # sort sigs/labels: longest -> shortest
         tensors, labels = zip(*[(b, c) for (a, b, c) in sorted(
@@ -157,9 +157,6 @@ class YOUTUBE_PIANOS(data.Dataset):
                 self.processed_file
             )
         )
-        # if not self.dev_mode:
-        #     shutil.rmtree(raw_abs_dir, ignore_errors=True)
-
         print('Done!')
 
 if __name__=='__main__':
