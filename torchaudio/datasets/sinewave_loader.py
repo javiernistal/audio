@@ -54,11 +54,12 @@ class SinewaveLoader(data.Dataset):
             target and transforms it.
         dev_mode(bool, optional): if true, clean up is not performed on downloaded
             files.  Useful to keep raw audio and transcriptions.
+        audio_length (int)
     """
 
     def __init__(
             self, root, sample_rate=16000, processed_file='sine-waves',
-            transform=None, chunk_size=1, freqs= [100], n_examples=100, rand_ph=True, overwrite=False
+            transform=None, audio_length=2048, freqs= [100], n_examples=100, rand_ph=True, overwrite=False
         ):
         self.processed_file = "{0}_{1}.pt".format(processed_file, sample_rate)
         self.root = os.path.join(
@@ -72,7 +73,7 @@ class SinewaveLoader(data.Dataset):
         self.num_samples = 0
         self.max_len = 0
         self.sample_rate=sample_rate
-        self.chunk_size = chunk_size
+        self.audio_length = audio_length
         self.processed_folder = 'processed'
         self.raw_folder = 'raw'
         self.overwrite = overwrite
@@ -100,7 +101,7 @@ class SinewaveLoader(data.Dataset):
         if self.transform is not None:
             audio = self.transform(audio)
 
-        return audio[:, :int(self.chunk_size * self.sample_rate)], 0
+        return audio[:, :int(self.audio_length)], 0
 
 
     def __len__(self):
@@ -110,7 +111,7 @@ class SinewaveLoader(data.Dataset):
         return os.path.exists(os.path.join(self.root, self.processed_folder, self.processed_file))
 
     def _gen_sinewave(self, ampl=1, f=100, ph=0):
-        return (ampl *np.sin(2*np.pi * np.arange(self.chunk_size*self.sample_rate)*f/self.sample_rate + ph)).astype(np.float32)
+        return (ampl *np.sin(2*np.pi * np.arange(self.audio_length)*f/self.sample_rate + ph)).astype(np.float32)
 
 
     def dump_torch_file(self):
