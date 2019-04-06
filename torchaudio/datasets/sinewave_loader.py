@@ -59,7 +59,7 @@ class SinewaveLoader(data.Dataset):
 
     def __init__(
             self, root, sample_rate=16000, processed_file='sine-waves',
-            transform=None, audio_length=2048, freqs= [100], n_examples=100, rand_ph=True, overwrite=False
+            transform=None, audio_length=2048, freqs= [100], dataset_size=100, rand_ph=True, overwrite=False
         ):
         self.processed_file = "{0}_{1}.pt".format(processed_file, sample_rate)
         self.root = os.path.join(
@@ -67,7 +67,7 @@ class SinewaveLoader(data.Dataset):
         )
         self.freqs = freqs
         self.rand_ph = rand_ph
-        self.n_examples = n_examples
+        self.dataset_size = dataset_size
         self.transform = transform
         self.data = []
         self.num_samples = 0
@@ -125,7 +125,7 @@ class SinewaveLoader(data.Dataset):
 
         sine_tensors = []
         print('Processing...')
-        for i in range(self.n_examples):
+        for i in range(self.dataset_size):
 
             f = self.freqs[np.random.randint(len(self.freqs))]
             if self.rand_ph:

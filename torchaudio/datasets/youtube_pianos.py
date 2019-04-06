@@ -6,9 +6,13 @@ import shutil
 import errno
 import torch
 import ipdb
-
+from tools import checkexists_mkdir, mkdir_in_path
+from librosa.core import resample
 try:
     import torchaudio
+
+YOUTUBE_PIANOS_RAW = '/Users/javier/Developer/datasets/youtube_pianos/raw/'
+
     def read_audio(fp, sample_rate, downsample=True):
         if sample_rate != 44100:
         # if downsample:
@@ -59,7 +63,7 @@ class YOUTUBE_PIANOS(data.Dataset):
 
     def __init__(
             self, root, sample_rate=16000, processed_file='youtube_pianos',
-            transform=None, target_transform=None, dev_mode=False, chunk_size=16000
+            transform=None, target_transform=None, dev_mode=False, audio_length=16000, overwrite=False
         ):
         self.processed_file = "{0}_{1}.pt".format(processed_file, sample_rate)
         self.root = os.path.expanduser(root)
@@ -71,8 +75,11 @@ class YOUTUBE_PIANOS(data.Dataset):
         self.num_samples = 0
         self.max_len = 0
         self.sample_rate=sample_rate
-        self.chunk_size = chunk_size
-
+        self.audio_length = audio_length
+        self.overwrite = overwrite
+        checkexists_mkdir(self.root)
+        self.processed_folder = mkdir_in_path(self.root, 'processed')
+        self.raw_folder = mkdir_in_path(self.root, 'raw')
         self.save_as_torch_file()
 
         if not self._check_exists():
@@ -97,7 +104,7 @@ class YOUTUBE_PIANOS(data.Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        return audio[:, :self.chunk_size], target
+        return audio[:, :self.audio_length], 0
 
 
     def __len__(self):
@@ -115,16 +122,16 @@ class YOUTUBE_PIANOS(data.Dataset):
 
         raw_abs_dir = os.path.join(self.root, self.raw_folder)
         processed_abs_dir = os.path.join(self.root, self.processed_folder)
-        dset_abs_path = os.path.join(
-            self.root, self.raw_folder)
+        # dset_abs_path = os.path.join(
+            # self.root, self.raw_folder)
 
-
+        dset_abs_path = YOUTUBE_PIANOS_RAW
         # process and save as torch files
         print('Processing...')
         # shutil.copyfile(
         #     os.path.join(dset_abs_path, "README"),
         #     os.path.join(processed_abs_dir, "YESNO_README")
-        # )
+        # ) 
         audios = [x for x in os.listdir(dset_abs_path) if ".wav" in x]
         print("Found {} audio files".format(len(audios)))
         tensors = []
@@ -134,7 +141,10 @@ class YOUTUBE_PIANOS(data.Dataset):
             print("Reading: {0}".format(f))
             full_path = os.path.join(dset_abs_path, f)
 
-            sig, sr = read_audio(full_path, self.sample_rate)
+            sig, sr = read_audio(full_path, 44100)
+
+
+            sig = resample(sig.numpy(), sr, self.sample_rate)
             sig = sig.reshape((1, -1))
 
             sig = torch.FloatTensor(sig)
@@ -148,13 +158,10 @@ class YOUTUBE_PIANOS(data.Dataset):
             zip(lengths, tensors, labels), key=lambda x: x[0], reverse=True)])
         self.max_len = tensors[0].size(1)
 
-        output_processed_path = os.path.join(self.root, self.processed_folder)
-        if not os.path.exists(output_processed_path): os.mkdir(output_processed_path)
-
         torch.save(
             (tensors, labels),
             os.path.join(
-                output_processed_path,
+                self.processed_folder,
                 self.processed_file
             )
         )
