@@ -11,7 +11,6 @@ from librosa.core import resample
 try:
     import torchaudio
 
-YOUTUBE_PIANOS_RAW = '/Users/javier/Developer/datasets/youtube_pianos/raw/'
 
     def read_audio(fp, sample_rate, downsample=True):
         if sample_rate != 44100:
@@ -38,6 +37,7 @@ except Exception as e:
 
 
 
+YOUTUBE_PIANOS_RAW = '/Users/javier/Developer/datasets/youtube_pianos/raw/'
 
 
 class YOUTUBE_PIANOS(data.Dataset):
@@ -62,7 +62,7 @@ class YOUTUBE_PIANOS(data.Dataset):
     # dset_path = 'waves_youtube_pianos'
 
     def __init__(
-            self, root, sample_rate=16000, processed_file='youtube_pianos',
+            self, root, sample_rate=16000, processed_file='youtube_pianos', dataset_size=1000,
             transform=None, target_transform=None, dev_mode=False, audio_length=16000, overwrite=False
         ):
         self.processed_file = "{0}_{1}.pt".format(processed_file, sample_rate)
@@ -76,6 +76,7 @@ class YOUTUBE_PIANOS(data.Dataset):
         self.max_len = 0
         self.sample_rate=sample_rate
         self.audio_length = audio_length
+        self.dataset_size = dataset_size
         self.overwrite = overwrite
         checkexists_mkdir(self.root)
         self.processed_folder = mkdir_in_path(self.root, 'processed')
@@ -138,6 +139,8 @@ class YOUTUBE_PIANOS(data.Dataset):
         labels = []
         lengths = []
         for i, f in enumerate(audios):
+            if i >= self.dataset_size:
+                break
             print("Reading: {0}".format(f))
             full_path = os.path.join(dset_abs_path, f)
 
