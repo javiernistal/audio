@@ -10,6 +10,7 @@ import numpy as np
 from tools import checkexists_mkdir, mkdir_in_path
 import librosa
 from scipy.misc import imresize
+import torchvision
 
 from ..transforms import MagPhSpectrogram
 try:
@@ -226,7 +227,10 @@ class SpectrumSinewaveLoader(data.Dataset):
         self.processed_folder = 'processed'
         self.raw_folder = 'raw'
         self.overwrite = overwrite
-
+        print()
+        print(f"FFT SIZE: {self.fftSize}")
+        print(f"AUDIO LENGTH: {self.audio_length}")
+        print()
         self.spec = MagPhSpectrogram(self.fftSize)
 
         checkexists_mkdir(self.root)
@@ -300,18 +304,35 @@ class SpectrumSinewaveLoader(data.Dataset):
             else:
                 ph=0
 
-            filename = f'spec_sinusoid_{str(i)}_f{str(f)}_sr{str(self.sample_rate)}.wav'
+            mag_file = f'mag_spec_sinusoid_{str(i)}_f{str(f)}_sr{str(self.sample_rate)}.jpg'
+            ph_file = f'ph_spec_sinusoid_{str(i)}_f{str(f)}_sr{str(self.sample_rate)}.jpg'
+            
             sinewave = torch.FloatTensor(self._gen_sinewave(f=f, ph=ph))
 
             mag_ph_spec = self.spec(sinewave.reshape(1, -1))
+            print(mag_ph_spec.size())
+            resize_spec = self.resize_spec(mag_ph_spec).t()
+            print(resize_spec.size())
 
-            resize_spec = self.resize_spec(mag_ph_spec)
-
-            # torchaudio.save(
-            #     os.path.join(raw_abs_dir, filename),
-            #     sinewave,
-            #     self.sample_rate
-            # )
+            torchvision.utils.save_image(mag_ph_spec[0],
+                os.path.join(raw_abs_dir, mag_file)
+                
+            )
+            torchvision.utils.save_image(mag_ph_spec[1],
+                os.path.join(raw_abs_dir, ph_file)
+                
+            )
+            mag_file = f'resized_scale_{self.scale}_mag_spec_sinusoid_{str(i)}_f{str(f)}_sr{str(self.sample_rate)}.jpg'
+            ph_file = f'resized_scale_{self.scale}_ph_spec_sinusoid_s{str(i)}_f{str(f)}_sr{str(self.sample_rate)}.jpg'
+            
+            torchvision.utils.save_image(resize_spec[0],
+                os.path.join(raw_abs_dir, mag_file)
+                
+            )
+            torchvision.utils.save_image(resize_spec[1],
+                os.path.join(raw_abs_dir, ph_file)
+                
+            )
             sine_tensors.append(resize_spec)
 
         output_processed_path = os.path.join(self.root, self.processed_folder)
