@@ -42,6 +42,11 @@ class MagPhSpectrogram(object):
                 number of fourier bins, which should be the window size divided
                 by 2 plus 1.
         """
+        if type(sig) != torch.Tensor:
+            sig = torch.Tensor(sig)
+        if sig.dim() == 1:
+            sig = sig.reshape(1, -1)
+
         assert sig.dim() == 2
 
         if self.pad > 0:
@@ -61,9 +66,8 @@ class MagPhSpectrogram(object):
         im_spec = spec_f[:, :, :, 1]
 
         mag_spec_f = spec_f.pow(self.power).sum(-1)  # get power of "complex" tensor (c, l, n_fft)
-        ph_spec_f  = torch.atan(torch.div(im_spec, re_spec + 0.000000000000000001))
+        ph_spec_f  = torch.atan2(im_spec, re_spec)
         mag_ph_spec = torch.stack((mag_spec_f, ph_spec_f), dim=1)
-        print(mag_ph_spec.squeeze(0).size())
         return mag_ph_spec.squeeze(0)
 
 

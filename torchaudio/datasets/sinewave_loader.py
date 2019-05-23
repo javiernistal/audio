@@ -127,8 +127,8 @@ class SinewaveLoader(data.Dataset):
         return os.path.exists(os.path.join(self.root, self.processed_folder, self.processed_file))
 
     def _gen_sinewave(self, ampl=1, f=100, ph=0):
-        if sample_rate < 2*f:
-            return np.zeros(self.audio_length)
+        if self.sample_rate < 2*f:
+            return np.zeros(int(self.audio_length))
         else:
             return (ampl *np.sin(2*np.pi * np.arange(self.audio_length)*f/self.sample_rate + ph)).astype(np.float32)
 
@@ -174,7 +174,7 @@ class SinewaveLoader(data.Dataset):
         print('Done!')
 
 
-class SpectrumSinewaveLoader(data.Dataset):
+class SpectrumSinewaveLoader2(data.Dataset):
     """`YesNo Hebrew <http://www.openslr.org/1/>`_ Dataset.
 
     Args:
@@ -227,10 +227,7 @@ class SpectrumSinewaveLoader(data.Dataset):
         self.processed_folder = 'processed'
         self.raw_folder = 'raw'
         self.overwrite = overwrite
-        print()
-        print(f"FFT SIZE: {self.fftSize}")
-        print(f"AUDIO LENGTH: {self.audio_length}")
-        print()
+
         self.spec = MagPhSpectrogram(self.fftSize)
 
         checkexists_mkdir(self.root)
@@ -273,13 +270,17 @@ class SpectrumSinewaveLoader(data.Dataset):
             return (ampl *np.sin(2*np.pi * np.arange(self.audio_length)*f/self.sample_rate + ph)).astype(np.float32)
 
     def get_size_in_scale(self, size):
+        # return size * 2 ** (-self.nScales + self.scale + 1)
         return size * 2 ** (-self.nScales + self.scale)
 
     def resize_spec(self, spec):
 
         size = (int(self.get_size_in_scale(self.fftSize)),
                 int(self.get_size_in_scale(self.nFrames)))
+
+
         mag_rs = torch.Tensor(imresize(spec[0], size, interp='bilinear'))
+
         ph_rs  = torch.Tensor(imresize(spec[1], size, interp='bilinear'))
         out_spec = torch.stack((mag_rs, ph_rs), dim=0)
 
@@ -310,9 +311,9 @@ class SpectrumSinewaveLoader(data.Dataset):
             sinewave = torch.FloatTensor(self._gen_sinewave(f=f, ph=ph))
 
             mag_ph_spec = self.spec(sinewave.reshape(1, -1))
-            print(mag_ph_spec.size())
-            resize_spec = self.resize_spec(mag_ph_spec).t()
-            print(resize_spec.size())
+
+            resize_spec = self.resize_spec(mag_ph_spec)
+
 
             torchvision.utils.save_image(mag_ph_spec[0],
                 os.path.join(raw_abs_dir, mag_file)
@@ -334,6 +335,205 @@ class SpectrumSinewaveLoader(data.Dataset):
                 
             )
             sine_tensors.append(resize_spec)
+
+        output_processed_path = os.path.join(self.root, self.processed_folder)
+        if not os.path.exists(output_processed_path): os.mkdir(output_processed_path)
+
+        torch.save(
+            sine_tensors,
+            os.path.join(
+                output_processed_path,
+                self.processed_file
+            )
+        )
+        print('Done!')
+
+
+class SpectrumSinewaveLoader(data.Dataset):
+    """`YesNo Hebrew <http://www.openslr.org/1/>`_ Dataset.
+
+    Args:
+        root (string): Root directory of dataset where ``processed/training.pt``
+            and  ``processed/test.pt`` exist.
+        download (bool, optional): If true, downloads the dataset from the internet and
+            puts it in root directory. If dataset is already downloaded, it is not
+            downloaded again.
+        transform (callable, optional): A function/transform that  takes in an PIL image
+            and returns a transformed version. E.g, ``transforms.Scale``
+        target_transform (callable, optional): A function/transform that takes in the
+            target and transforms it.
+        dev_mode(bool, optional): if true, clean up is not performed on downloaded
+            files.  Useful to keep raw audio and transcriptions.
+        audio_length (int)
+    """
+
+    def __init__(self,
+                 root,
+                 sample_rate=16000,
+                 processed_file='spec-sine-waves', 
+                 transform=None, 
+                 audio_length=2048, 
+                 nFrames=32,
+                 freqs=[500], 
+                 dataset_size=100,
+                 fftSize=4096,
+                 scale=0,
+                 nScales=5,
+                 rand_ph=True, 
+                 overwrite=False):
+
+        self.processed_file = "{0}_{1}.pt".format(processed_file, scale)
+        self.root = os.path.join(
+            os.path.expanduser(root), processed_file + f'_sr{str(sample_rate)}_randph_{rand_ph}'
+        )
+        self.nFrames = nFrames
+        self.freqs = freqs
+        self.fftSize = fftSize
+        self.scale = scale
+        self.nScales = nScales
+        self.rand_ph = rand_ph
+        self.dataset_size = dataset_size
+        self.target_sr = sample_rate * 2**(-self.nScales + self.scale)
+        self.target_fftsize = fftSize * 2**(-self.nScales + self.scale)
+        self.transform = transform
+        self.data = []
+        self.num_samples = 0
+        self.max_len = 0
+        self.sample_rate = sample_rate
+        self.audio_length = int(self.nFrames * self.fftSize/2.)
+        self.processed_folder = 'processed'
+        self.raw_folder = 'raw'
+        self.overwrite = overwrite
+        
+
+        self.spec = MagPhSpectrogram(
+            n_fft=2*self.fftSize,
+            ws=self.fftSize,
+            hop=int(self.fftSize/2))
+
+        checkexists_mkdir(self.root)
+        mkdir_in_path(self.root, self.processed_folder)
+        mkdir_in_path(self.root, self.raw_folder)
+        self.dump_torch_file()
+
+        if not self._check_exists():
+            raise RuntimeError('Dataset not found.')
+
+        self.data = torch.load(os.path.join(
+            self.root, self.processed_folder, self.processed_file))
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (image, target) where target is index of the target class.
+        """
+        audio = self.data[index]
+
+        if self.transform is not None:
+            audio = self.transform(audio)
+
+        return audio, 0
+
+
+    def __len__(self):
+        return len(self.data)
+
+    def _check_exists(self):
+        return os.path.exists(os.path.join(self.root, self.processed_folder, self.processed_file))
+
+    def _gen_sinewave(self, ampl=1, f=100, ph=0):
+        if self.sample_rate < 2*f:
+            return np.zeros(self.audio_length)
+        else:
+            return (ampl *np.sin(2*np.pi * np.arange(self.audio_length)*f/self.sample_rate + ph)).astype(np.float32)
+
+    def get_size_in_scale(self, size):
+        return int(size * 2 ** (-self.nScales + self.scale))
+
+    # def resize_spec(self, spec):
+
+    #     size = (int(self.get_size_in_scale(self.fftSize)),
+    #             int(self.get_size_in_scale(self.nFrames)))
+    #     mag_rs = torch.Tensor(imresize(spec[0], size, interp='bilinear'))
+    #     ph_rs  = torch.Tensor(imresize(spec[1], size, interp='bilinear'))
+    #     out_spec = torch.stack((mag_rs, ph_rs), dim=0)
+
+    #     return out_spec
+
+    def resize_spec(self, spec):
+#       assert spec.shape[0]==2
+        orig_size = spec.size()[1:]
+
+        target_size = (self.get_size_in_scale(orig_size[0]), 
+                       self.get_size_in_scale(orig_size[1]))
+
+        # target_size = (int(self.get_size_in_scale(self.fftSize)),
+        #         int(self.get_size_in_scale(self.nFrames)))
+        mag_spec = imresize(spec[0], target_size)
+        ph_spec  = imresize(spec[1], target_size)
+        
+        return mag_spec, ph_spec
+
+    def get_complex_spec(self, spec):
+        return spec[0] * np.exp(1.j * spec[1])
+
+    def dump_torch_file(self):
+        """Download the yesno data if it doesn't exist in processed_folder already."""
+
+        if self._check_exists() and not self.overwrite:
+            return
+
+        raw_abs_dir = os.path.join(self.root, self.raw_folder)
+        processed_abs_dir = os.path.join(self.root, self.processed_folder)
+
+        sine_tensors = []
+        print('Processing...')
+        for i in range(self.dataset_size):
+
+            f = self.freqs[np.random.randint(len(self.freqs))]
+            if self.rand_ph:
+                ph = np.random.uniform(-np.pi, np.pi)
+            else:
+                ph=0
+
+            mag_file = f'mag_spec_sinusoid_{str(i)}_f{str(f)}_sr{str(self.sample_rate)}.jpg'
+            ph_file = f'ph_spec_sinusoid_{str(i)}_f{str(f)}_sr{str(self.sample_rate)}.jpg'
+            
+            sinewave = self._gen_sinewave(f=f, ph=ph)
+            # ipdb.set_trace()
+            mag_ph_spec = self.spec(sinewave)
+
+            rs_mag, rs_ph = self.resize_spec(mag_ph_spec)
+            # print(resize_spec.size())
+
+            torchvision.utils.save_image(mag_ph_spec[0],
+                os.path.join(raw_abs_dir, mag_file)
+                
+            )
+            torchvision.utils.save_image(mag_ph_spec[1],
+                os.path.join(raw_abs_dir, ph_file)
+                
+            )
+            mag_file = f'resized_scale_{self.scale}_mag_spec_sinusoid_{str(i)}_f{str(f)}_sr{str(self.sample_rate)}.jpg'
+            ph_file = f'resized_scale_{self.scale}_ph_spec_sinusoid_s{str(i)}_f{str(f)}_sr{str(self.sample_rate)}.jpg'
+            rs_mag = torch.Tensor(rs_mag)
+            rs_ph  = torch.Tensor(rs_ph)
+
+            torchvision.utils.save_image(rs_mag,
+                os.path.join(raw_abs_dir, mag_file)
+                
+            )
+            torchvision.utils.save_image(rs_ph,
+                os.path.join(raw_abs_dir, ph_file)
+                
+            )
+
+            out_spec = torch.stack((rs_mag, rs_ph), dim=0)
+
+            sine_tensors.append(out_spec)
 
         output_processed_path = os.path.join(self.root, self.processed_folder)
         if not os.path.exists(output_processed_path): os.mkdir(output_processed_path)
