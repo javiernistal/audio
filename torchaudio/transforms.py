@@ -3,7 +3,61 @@ from warnings import warn
 import torch
 import numpy as np
 
+from librosa.core import stft, istft, magphase, resample
+
 import ipdb
+
+from scipy.misc import imresize
+
+
+class ResampleWrapper():
+    def __init__(self, orig_sr, target_sr):
+        self.orig_sr = orig_sr
+        self.target_sr = target_sr
+    def __call__(self, audio):
+        return torch.Tensor(resample(y=audio.numpy(), target_sr=self.target_sr, orig_sr=self.orig_sr))
+    
+
+class RemoveDC():
+    def __call__(self, spectrum):
+        fdim = np.argmax(spectrum.size())
+
+        if fdim == 0:
+            return spectrum[1:]
+        elif fdim == 1:
+            return spectrum[:, 1:]
+        elif fdim ==2:
+            return spectrum[:, :, 1:]
+
+class ResizeWrapper():
+    def __init__(self, new_size):
+        self.size = new_size
+    def __call__(self, image):
+        mag = image[0]
+        ph = image[1]
+
+        re_mag = torch.Tensor(imresize(mag, self.size))
+
+        re_ph = torch.Tensor(imresize(ph, self.size))
+        return torch.stack((re_mag, re_ph), dim=0)
+
+
+class LibrosaStftWrapper():
+    def __init__(self, n_fft=4096, ws=2048, hop=1024):
+        self.n_fft=n_fft
+        self.ws=ws
+        self.hop=hop
+
+    def __call__(self, audio):
+        spec = stft(audio.numpy().reshape(-1,), hop_length=self.hop, win_length=self.ws, n_fft=self.n_fft)
+        # spec = spec.T
+        mag, ph = magphase(spec)
+        mag = torch.Tensor(mag)
+        ph = np.angle(ph)
+        ph = torch.Tensor(ph)
+        out = torch.stack((mag, ph), dim=0)
+        return out.reshape(out.size(0), out.size(2), out.size(1))
+
 
 class MagPhSpectrogram(object):
     """Create a spectrogram from a raw audio signal
@@ -68,6 +122,7 @@ class MagPhSpectrogram(object):
         mag_spec_f = spec_f.pow(self.power).sum(-1)  # get power of "complex" tensor (c, l, n_fft)
         ph_spec_f  = torch.atan2(im_spec, re_spec)
         mag_ph_spec = torch.stack((mag_spec_f, ph_spec_f), dim=1)
+
         return mag_ph_spec.squeeze(0)
 
 
