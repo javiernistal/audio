@@ -19,13 +19,17 @@ class ResampleWrapper():
     
 
 class RemoveDC():
+    def __init__(self, fdim=2):
+        self.fdim=fdim
+
     def __call__(self, spectrum):
-        fdim = np.argmax(spectrum.size())
-        if fdim == 0:
+
+        # self.fdim = np.argmax(spectrum.size())
+        if self.fdim == 0:
             return spectrum[1:]
-        elif fdim == 1:
+        elif self.fdim == 1:
             return spectrum[:, 1:]
-        elif fdim ==2:
+        elif self.fdim ==2:
             return spectrum[:, :, 1:]
     def addDC(self, spectrum):
         raise NotImplementedError
@@ -52,11 +56,30 @@ class LibrosaStftWrapper():
     def __call__(self, audio):
 
         spec = stft(audio.numpy().reshape(-1,), hop_length=self.hop, win_length=self.ws, n_fft=self.n_fft)
+        
         mag, ph = magphase(spec)
         mag = torch.Tensor(mag)
         ph = np.angle(ph)
         ph = torch.Tensor(ph)
+        print(f"Shape mag {mag.size()}")
+        print(f"shape ph {ph.size()}")
+
+        # This method allows visualization
+        
         out = torch.stack((mag.t(), ph.t()), dim=0)
+        # out = torch.stack((mag, ph), dim=1)
+        # out = out.view((2, out.size(2), -1))
+
+        # print(f"method A: ph mag stack {out.size()}")
+        # return out
+
+        # This method good hearing
+        # out = torch.stack((mag, ph), dim=0)
+        # print(f"ph mag stack {out.size()}")
+        # out = out.view(2, out.size(2), -1)
+        # print(f"ph mag stack reshape {out.size()}")
+
+
         return out
 
 
