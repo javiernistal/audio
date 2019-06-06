@@ -20,6 +20,7 @@ class ResampleWrapper():
 
 class RemoveDC():
     def __init__(self, fdim=2):
+    # def __init__(self, fdim=1):
         self.fdim=fdim
 
     def __call__(self, spectrum):
@@ -61,13 +62,12 @@ class LibrosaStftWrapper():
         mag = torch.Tensor(mag)
         ph = np.angle(ph)
         ph = torch.Tensor(ph)
-        print(f"Shape mag {mag.size()}")
-        print(f"shape ph {ph.size()}")
 
         # This method allows visualization
         
         out = torch.stack((mag.t(), ph.t()), dim=0)
-        # out = torch.stack((mag, ph), dim=1)
+        # out = torch.stack((mag, ph), dim=0)
+
         # out = out.view((2, out.size(2), -1))
 
         # print(f"method A: ph mag stack {out.size()}")
