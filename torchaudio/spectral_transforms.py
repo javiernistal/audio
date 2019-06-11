@@ -21,11 +21,45 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import spectral_ops
+from . import spectral_ops
 import numpy as np
 import torch
 
 import ipdb
+def phase_diff(ph):
+    return torch.Tensor(ph[1:, :] - ph[:-1, :])
+
+def instantaneous_freq(mp):
+    if mp.size(0) != 2:
+      ph = mp
+    else:
+      m = mp[0]
+      ph = mp[1]
+
+    ph = torch.Tensor(ph)
+    shape = list(ph.shape)
+
+    ph_diff = phase_diff(ph)
+    ph_diff_mod = torch.fmod(ph_diff + np.pi, 2.0 * np.pi) - np.pi
+    
+    idx = (ph_diff_mod == -np.pi) == (ph_diff > 0)
+    ddmod = torch.where(idx, torch.ones_like(ph_diff_mod) * np.pi, ph_diff_mod)
+
+    ph_correct = ddmod - ph_diff
+    ph_cumsum = torch.cumsum(ph_correct, dim=0)
+    shape[0] = 1
+    ph_cumsum = torch.cat([torch.zeros(shape), ph_cumsum], dim=0)
+    unwrapped = ph + ph_cumsum
+
+    dif_unwrapped = phase_diff(unwrapped)
+    
+    ph_slice = unwrapped[:1, :]
+    dphase = torch.cat([ph_slice, dif_unwrapped], dim=0) / np.pi
+    if mp.size(0) == 2:
+      mp = torch.stack([m, dphase], dim=0)
+    else:
+      mp = dphase
+    return mp
 
 
 class SpecgramsHelper(object):
