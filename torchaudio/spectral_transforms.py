@@ -27,7 +27,12 @@ import torch
 
 import ipdb
 def phase_diff(ph):
-    return torch.Tensor(ph[1:, :] - ph[:-1, :])
+    return torch.Tensor(ph[:, 1:] - ph[:, :-1])
+
+def inv_instantanteous_freq(x):
+    ifreq_inv = torch.stack([x[0], torch.cumsum(x[1] * np.pi, dim=1)])
+    
+    return ifreq_inv
 
 def instantaneous_freq(mp):
     if mp.size(0) != 2:
@@ -46,15 +51,15 @@ def instantaneous_freq(mp):
     ddmod = torch.where(idx, torch.ones_like(ph_diff_mod) * np.pi, ph_diff_mod)
 
     ph_correct = ddmod - ph_diff
-    ph_cumsum = torch.cumsum(ph_correct, dim=0)
-    shape[0] = 1
-    ph_cumsum = torch.cat([torch.zeros(shape), ph_cumsum], dim=0)
+    ph_cumsum = torch.cumsum(ph_correct, dim=1)
+    shape[1] = 1
+    ph_cumsum = torch.cat([torch.zeros(shape), ph_cumsum], dim=1)
     unwrapped = ph + ph_cumsum
 
     dif_unwrapped = phase_diff(unwrapped)
     
-    ph_slice = unwrapped[:1, :]
-    dphase = torch.cat([ph_slice, dif_unwrapped], dim=0) / np.pi
+    ph_slice = unwrapped[:, :1]
+    dphase = torch.cat([ph_slice, dif_unwrapped], dim=1) / np.pi
     if mp.size(0) == 2:
       mp = torch.stack([m, dphase], dim=0)
     else:
