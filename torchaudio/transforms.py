@@ -1,6 +1,8 @@
 from __future__ import division, print_function
 from warnings import warn
 import torch
+from torch.nn.functional import interpolate
+
 import numpy as np
 
 from librosa.core import stft, istft, magphase, resample
@@ -9,6 +11,43 @@ import ipdb
 
 from scipy.misc import imresize
 
+
+def norm_audio(x):
+    return x/max(x)
+
+def mag_phase_angle(x):
+    mag, ph = magphase(x)
+    ph = np.angle(ph)
+    mag = torch.Tensor(mag)
+    ph = torch.Tensor(ph)
+    out = torch.stack([mag, ph], dim=0)
+    return out
+
+def find_closest_p2(size):
+    return (2**np.ceil(np.log2(size)).astype(np.int16)).tolist()
+
+def mag_to_complex(x):
+    mag = x[0]
+    ph = x[1]
+    return np.array(mag) * np.exp(1.j * np.array(ph))
+
+def safe_log(x):
+    return torch.log(x + 1e-10)
+
+def safe_log_spec(x):
+    mag = x[0]
+    ph = x[1]
+    mlog = safe_log(mag)
+    return torch.stack([mlog, ph], dim=0)
+
+def safe_exp_spec(x):
+    mag = x[0]
+    ph = x[1]
+    elog = safe_exp(mag)
+    return torch.stack([elog, ph], dim=0)
+
+def safe_exp(x):
+    return torch.exp(x) - 1e-10
 
 class ResampleWrapper():
     def __init__(self, orig_sr, target_sr):
@@ -19,12 +58,11 @@ class ResampleWrapper():
     
 
 class RemoveDC():
-    def __init__(self, fdim=2):
+    def __init__(self, fdim=1):
     # def __init__(self, fdim=1):
         self.fdim=fdim
 
     def __call__(self, spectrum):
-
         # self.fdim = np.argmax(spectrum.size())
         if self.fdim == 0:
             return spectrum[1:]
@@ -32,21 +70,43 @@ class RemoveDC():
             return spectrum[:, 1:]
         elif self.fdim ==2:
             return spectrum[:, :, 1:]
-    def addDC(self, spectrum):
-        raise NotImplementedError
+
+class AddDC():
+    def __init__(self, fdim=1):
+        self.fdim = fdim
+    def __call__(self, x):
+        
+        # return torch.cat([torch.zeros(2, x.size(1), 1), x],
+        #                  dim=self.fdim)        
+        return torch.cat([torch.zeros(2, 1, x.size(2)), x],
+                         dim=self.fdim)
 
 class ResizeWrapper():
     def __init__(self, new_size):
         self.size = new_size
     def __call__(self, image):
         mag = image[0]
-        ph = image[1]
+        ph = image[1]       
+        out = interpolate(image.unsqueeze(0), size=self.size).squeeze(0)
 
-        re_mag = torch.Tensor(imresize(mag, self.size))
+        # re_mag = torch.Tensor(imresize(mag, self.size))
+        # re_ph = torch.Tensor(imresize(ph, self.size))
 
-        re_ph = torch.Tensor(imresize(ph, self.size))
-        return torch.stack((re_mag, re_ph), dim=0)
+        # ipdb.set_trace()
+        # out = torch.stack((re_mag, re_ph), dim=0)
+        return out
 
+class LibrosaIstftWrapper():
+    def __init__(self, hop_length, win_length):
+        self.hop_length = hop_length
+        self.win_length = win_length
+
+    def __call__(self, x):
+        # x = torch.stack([x[0].t(), x[1].t()], dim=0)
+        x = mag_to_complex(x)
+        return istft(x,
+                     hop_length=self.hop_length,
+                     win_length=self.win_length) 
 
 class LibrosaStftWrapper():
     def __init__(self, n_fft=4096, ws=2048, hop=1024):
@@ -55,31 +115,16 @@ class LibrosaStftWrapper():
         self.hop=hop
 
     def __call__(self, audio):
-
-        spec = stft(audio.numpy().reshape(-1,), hop_length=self.hop, win_length=self.ws, n_fft=self.n_fft)
-        
+        spec = stft(audio.numpy().reshape(-1,),
+                    hop_length=self.hop,
+                    win_length=self.ws,
+                    n_fft=self.n_fft)
         mag, ph = magphase(spec)
         mag = torch.Tensor(mag)
         ph = np.angle(ph)
         ph = torch.Tensor(ph)
-
-        # This method allows visualization
-        
-        out = torch.stack((mag.t(), ph.t()), dim=0)
-        # out = torch.stack((mag, ph), dim=0)
-
-        # out = out.view((2, out.size(2), -1))
-
-        # print(f"method A: ph mag stack {out.size()}")
-        # return out
-
-        # This method good hearing
-        # out = torch.stack((mag, ph), dim=0)
-        # print(f"ph mag stack {out.size()}")
-        # out = out.view(2, out.size(2), -1)
-        # print(f"ph mag stack reshape {out.size()}")
-
-
+        # out = torch.stack((mag.t(), ph.t()), dim=0)
+        out = torch.stack((mag, ph), dim=0)
         return out
 
 
