@@ -12,6 +12,30 @@ import ipdb
 from scipy.misc import imresize
 
 
+def fold_cqt(x):
+    assert x.size(0) == 2, "fold_cqt: "
+    mag = x[0]
+    ph = x[1]
+    hf = int(mag.size(0) / 2)
+
+    mag1 = mag[:hf]
+    mag2 = torch.Tensor(np.flip(mag[hf:]).copy())
+    ph1  = ph[:hf]
+    ph2  = torch.Tensor(np.flip(ph[hf:]).copy())
+    return torch.stack([mag1, mag2, ph1, ph2], dim=0)
+
+def unfold_cqt(x):
+    assert x.size(0) == 4, "fold_cqt: "
+
+    mag1 = x[0]
+    mag2 = torch.from_numpy(np.flip(x[1]).copy())
+    ph1  = x[2]
+    ph2  = torch.from_numpy(np.flip(x[3]).copy())
+    mag  = torch.cat([mag1, mag2], dim=0)
+    ph   = torch.cat([ph1, ph2], dim=0)
+
+    return torch.stack([mag, ph], dim=0)
+
 def norm_audio(x):
     return x/max(x)
 
@@ -85,14 +109,15 @@ class ResizeWrapper():
     def __init__(self, new_size):
         self.size = new_size
     def __call__(self, image):
+        assert np.argmax(self.size) == np.argmax(image.size()[1:]), \
+            "Resize dimensions mismatch"
         mag = image[0]
-        ph = image[1]       
+        ph = image[1]
         out = interpolate(image.unsqueeze(0), size=self.size).squeeze(0)
 
         # re_mag = torch.Tensor(imresize(mag, self.size))
         # re_ph = torch.Tensor(imresize(ph, self.size))
 
-        # ipdb.set_trace()
         # out = torch.stack((re_mag, re_ph), dim=0)
         return out
 
