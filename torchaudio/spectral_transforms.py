@@ -66,6 +66,29 @@ def instantaneous_freq(mp):
       mp = dphase
     return mp
 
+def if_np(mp):
+    if mp.size(0) != 2:
+      ph = mp
+    else:
+      m = mp[0]
+      ph = mp[1]
+
+    uph = np.unwrap(ph, axis=1)
+    uph_diff = torch.Tensor(np.diff(uph, axis=1))
+    ifreq = torch.cat([ph[:, :1], uph_diff], dim=1)
+
+    if mp.size(0) == 2:
+      mp = torch.stack([m, ifreq/np.pi], dim=0)
+    else:
+      mp = ifreq
+    return mp
+
+def cos_sin_diff_inv(x):
+    m = x[0]
+    s = x[1]
+    c = x[2]
+    phdiff = np.arctan2(s, c)
+    return 
 
 class SpecgramsHelper(object):
   """Helper functions to compute specgrams."""
