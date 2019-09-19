@@ -12,6 +12,12 @@ import ipdb
 from scipy.misc import imresize
 
 
+def fade_out(x, percent=50.):
+    fade_idx = int(x.size(1) * percent /100.)
+    fade_out = np.flip(np.arange(0, 1, 1/fade_idx)).copy()
+    x[:, -fade_idx:] = x[:, -fade_idx:] * torch.from_numpy(fade_out).float()
+    return x
+
 def fold_cqt(x):
     assert x.size(0) == 2, "fold_cqt: "
     mag = x[0]
