@@ -26,6 +26,13 @@ import numpy as np
 import torch
 
 import ipdb
+
+def griffin_lim(mag_spec):
+  return mag_spec
+
+def remove_ph(spectrum):
+  return spectrum[0:1]
+
 def phase_diff(ph):
     return torch.Tensor(ph[:, 1:] - ph[:, :-1])
 
