@@ -12,10 +12,12 @@ import ipdb
 from scipy.misc import imresize
 
 
-def fade_out(x, percent=50.):
+def fade_out(x, percent=30.):
     fade_idx = int(x.size(1) * percent /100.)
-    fade_out = np.flip(np.arange(0, 1, 1/fade_idx)).copy()
-    x[:, -fade_idx:] = x[:, -fade_idx:] * torch.from_numpy(fade_out).float()
+    fade_curve = np.logspace(1, 0, fade_idx)
+    fade_curve -= min(fade_curve)
+    fade_curve /= max(fade_curve)
+    x[:, -fade_idx:] = x[:, -fade_idx:] * torch.from_numpy(fade_curve).float()
     return x
 
 def fold_cqt(x):
