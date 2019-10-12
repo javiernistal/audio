@@ -117,11 +117,21 @@ class ResizeWrapper():
     def __init__(self, new_size):
         self.size = new_size
     def __call__(self, image):
+        if type(image) is not torch.Tensor: image = torch.Tensor(image).unsqueeze(0)
         assert np.argmax(self.size) == np.argmax(image.size()[1:]), \
             "Resize dimensions mismatch"
-        mag = image[0]
-        ph = image[1]
-        out = interpolate(image.unsqueeze(0), size=self.size).squeeze(0)
+
+        if image.size(0) == 2:
+            mag = image[0]
+            ph = image[1]
+        # else:
+
+        #     image = image.unsqueeze(0)
+        if len(image.size()) == 3:
+            image = image.unsqueeze(0)
+        else:
+            print(image.size())
+        out = interpolate(image, size=self.size).squeeze(0)
 
         # re_mag = torch.Tensor(imresize(mag, self.size))
         # re_ph = torch.Tensor(imresize(ph, self.size))
@@ -156,7 +166,6 @@ class LibrosaStftWrapper():
         mag = torch.Tensor(mag)
         ph = np.angle(ph)
         ph = torch.Tensor(ph)
-        # out = torch.stack((mag.t(), ph.t()), dim=0)
         out = torch.stack((mag, ph), dim=0)
         return out
 
