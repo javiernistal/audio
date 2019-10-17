@@ -41,54 +41,55 @@ def inv_instantanteous_freq(x):
     
     return ifreq_inv
 
-def instantaneous_freq(mp):
-    if mp.size(0) != 2:
-      ph = mp
-    else:
-      m = mp[0]
-      ph = mp[1]
+# def instantaneous_freq(mp):
+#     if mp.size(0) != 2:
+#       ph = mp
+#     else:
+#       m = mp[0]
+#       ph = mp[1]
 
-    ph = torch.Tensor(ph)
-    shape = list(ph.shape)
+#     ph = torch.Tensor(ph)
+#     shape = list(ph.shape)
 
-    ph_diff = phase_diff(ph)
-    ph_diff_mod = torch.fmod(ph_diff + np.pi, 2.0 * np.pi) - np.pi
+#     ph_diff = phase_diff(ph)
+#     ph_diff_mod = torch.fmod(ph_diff + np.pi, 2.0 * np.pi) - np.pi
     
-    idx = (ph_diff_mod == -np.pi) == (ph_diff > 0)
-    ddmod = torch.where(idx, torch.ones_like(ph_diff_mod) * np.pi, ph_diff_mod)
+#     idx = (ph_diff_mod == -np.pi) == (ph_diff > 0)
+#     ddmod = torch.where(idx, torch.ones_like(ph_diff_mod) * np.pi, ph_diff_mod)
 
-    ph_correct = ddmod - ph_diff
-    ph_cumsum = torch.cumsum(ph_correct, dim=1)
-    shape[1] = 1
-    ph_cumsum = torch.cat([torch.zeros(shape), ph_cumsum], dim=1)
-    unwrapped = ph + ph_cumsum
+#     ph_correct = ddmod - ph_diff
+#     ph_cumsum = torch.cumsum(ph_correct, dim=1)
+#     shape[1] = 1
+#     ph_cumsum = torch.cat([torch.zeros(shape), ph_cumsum], dim=1)
+#     unwrapped = ph + ph_cumsum
 
-    dif_unwrapped = phase_diff(unwrapped)
+#     dif_unwrapped = phase_diff(unwrapped)
     
-    ph_slice = unwrapped[:, :1]
-    dphase = torch.cat([ph_slice, dif_unwrapped], dim=1) / np.pi
-    if mp.size(0) == 2:
-      mp = torch.stack([m, dphase], dim=0)
-    else:
-      mp = dphase
-    return mp
+#     ph_slice = unwrapped[:, :1]
+#     dphase = torch.cat([ph_slice, dif_unwrapped], dim=1) / np.pi
+#     if mp.size(0) == 2:
+#       mp = torch.stack([m, dphase], dim=0)
+#     else:
+#       mp = dphase
+#     return mp
 
-def if_np(mp):
-    if mp.size(0) != 2:
-      ph = mp
+
+def instantaneous_freq(specgrams):
+    if specgrams.shape[0] != 2:
+      ph = specgrams
     else:
-      m = mp[0]
-      ph = mp[1]
+      mag = specgrams[0]
+      ph = specgrams[1]
 
     uph = np.unwrap(ph, axis=1)
-    uph_diff = torch.Tensor(np.diff(uph, axis=1))
-    ifreq = torch.cat([ph[:, :1], uph_diff], dim=1)
+    uph_diff = np.diff(uph, axis=1)
+    ifreq = np.concatenate([ph[:, :1], uph_diff], axis=1)
 
-    if mp.size(0) == 2:
-      mp = torch.stack([m, ifreq/np.pi], dim=0)
+    if specgrams.shape[0] == 2:
+      return np.stack([mag, ifreq/np.pi])
     else:
-      mp = ifreq
-    return mp
+      return ifreq
+
 
 def cos_sin_diff_inv(x):
     m = x[0]

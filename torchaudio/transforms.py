@@ -12,12 +12,29 @@ import ipdb
 from scipy.misc import imresize
 
 
+def complex_to_lin(x):
+    return np.stack((np.real(x), np.imag(x)))
+
+def lin_to_complex(x):
+    assert len(x.shape) == 3, "Wrong shape"
+    if type(x) is not np.ndarray:
+        x = np.array(x)
+    return x[0] + 1j * x[1]
+
 def fade_out(x, percent=30.):
-    fade_idx = int(x.size(1) * percent /100.)
+    """
+        Applies fade out at the end of an audio vector
+
+        x 
+    """
+    assert type(x) == np.ndarray, f"Fade_out: data type {type(x)} not {np.ndarray}"
+    assert len(x.shape) == 1, f"Data has incompatible shape {x.shape}"
+
+    fade_idx = int(x.shape[-1] * percent /100.)
     fade_curve = np.logspace(1, 0, fade_idx)
     fade_curve -= min(fade_curve)
     fade_curve /= max(fade_curve)
-    x[:, -fade_idx:] = x[:, -fade_idx:] * torch.from_numpy(fade_curve).float()
+    x[-fade_idx:] *= fade_curve   
     return x
 
 def fold_cqt(x):
@@ -63,13 +80,8 @@ def norm_audio(x):
 def mag_phase_angle(x):
     mag, ph = magphase(x)
     ph = np.angle(ph)
-    mag = torch.Tensor(mag)
-    ph = torch.Tensor(ph)
-    out = torch.stack([mag, ph], dim=0)
+    out = np.stack([mag, ph])
     return out
-
-def find_closest_p2(size):
-    return (2**np.ceil(np.log2(size)).astype(np.int16)).tolist()
 
 def mag_to_complex(x):
     mag = x[0]
@@ -106,48 +118,35 @@ class ResampleWrapper():
     
 
 class RemoveDC():
-    def __init__(self, fdim=1):
+    def __init__(self, fdim=-2):
     # def __init__(self, fdim=1):
         self.fdim=fdim
 
     def __call__(self, spectrum):
+        assert len(spectrum.shape) == 3, \
+            f"Spectrum shape {spectrum.shape} not valid"
         # self.fdim = np.argmax(spectrum.size())
-        if self.fdim == 0:
-            return spectrum[1:]
-        elif self.fdim == 1:
-            return spectrum[:, 1:]
-        elif self.fdim ==2:
-            return spectrum[:, :, 1:]
+        return spectrum[:, :, 1:]
 
 class AddDC():
-    def __init__(self, fdim=1):
+    def __init__(self, fdim=-2):
         self.fdim = fdim
     def __call__(self, x):
-        
-        # return torch.cat([torch.zeros(2, x.size(1), 1), x],
-        #                  dim=self.fdim)        
-        return torch.cat([torch.zeros(2, 1, x.size(2)), x],
-                         dim=self.fdim)
+        if type(x) is not np.ndarray: 
+            x = x.numpy()
+        return np.concatenate(
+            [np.zeros((2, 1, x.shape[-1])), x], axis=-2)
 
 class ResizeWrapper():
     def __init__(self, new_size):
         self.size = new_size
     def __call__(self, image):
-        if type(image) is not torch.Tensor: image = torch.Tensor(image).unsqueeze(0)
-        assert np.argmax(self.size) == np.argmax(image.size()[1:]), \
-            "Resize dimensions mismatch"
-
-        if image.size(0) == 2:
-            mag = image[0]
-            ph = image[1]
-        # else:
-
-        #     image = image.unsqueeze(0)
-        if len(image.size()) == 3:
-            image = image.unsqueeze(0)
-        else:
-            print(image.size())
-        out = interpolate(image, size=self.size).squeeze(0)
+        assert np.argmax(self.size) == np.argmax(image.shape[-2:]), \
+            f"Resize dimensions mismatch, Target shape {self.size} \
+                != image shape {image.shape}"
+        if type(image) is not np.ndarray:
+            image = image.numpy()
+        out = interpolate(torch.from_numpy(image).unsqueeze(0), size=self.size).squeeze(0)
         return out
 
 class LibrosaIstftWrapper():
