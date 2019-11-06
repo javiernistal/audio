@@ -38,7 +38,8 @@ def fade_out(x, percent=30.):
     return x
 
 def fold_cqt(x):
-
+    if type(x) == np.ndarray:
+        x = torch.from_numpy(x)
     # For both mag and ph
     if x.size(0) == 2:
 
@@ -47,9 +48,9 @@ def fold_cqt(x):
         hf = int(mag.size(0) / 2)
 
         mag1 = mag[:hf]
-        mag2 = torch.Tensor(np.flip(mag[hf:]).copy())
+        mag2 = torch.from_numpy(np.flip(mag[hf:]).copy())
         ph1  = ph[:hf]
-        ph2  = torch.Tensor(np.flip(ph[hf:]).copy())
+        ph2  = torch.from_numpy(np.flip(ph[hf:]).copy())
         return torch.stack([mag1, mag2, ph1, ph2], dim=0)
     # when only mag or ph
     elif x.size(0) == 1:
@@ -75,7 +76,10 @@ def unfold_cqt(x):
         return torch.cat([mag1, mag2], dim=0).unsqueeze(0)
 
 def norm_audio(x):
-    return x/max(x)
+    if max(x) != 0:
+        return x/max(x)
+    else:
+        return x
 
 def mag_phase_angle(x):
     mag, ph = magphase(x)
@@ -89,9 +93,13 @@ def mag_to_complex(x):
     return np.array(mag) * np.exp(1.j * np.array(ph))
 
 def safe_log(x):
+
     return torch.log(x + 1e-10)
 
 def safe_log_spec(x):
+    if type(x) == np.ndarray:
+        x = torch.from_numpy(x)
+
     mag = x[0]
     ph = x[1]
     mlog = safe_log(mag)
