@@ -133,8 +133,9 @@ class RemoveDC():
     def __call__(self, spectrum):
         assert len(spectrum.shape) == 3, \
             f"Spectrum shape {spectrum.shape} not valid"
+        assert spectrum.shape[-2] % 2 != 0, "Is dim 2 freq?"
         # self.fdim = np.argmax(spectrum.size())
-        return spectrum[:, :, 1:]
+        return spectrum[:, 1:, :]
 
 class AddDC():
     def __init__(self, fdim=-2):
